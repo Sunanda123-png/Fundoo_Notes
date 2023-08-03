@@ -1,0 +1,33 @@
+from core.db import Base
+from sqlalchemy import Column, String, BigInteger, Boolean
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class User(Base):
+    __tablename__ = "user"
+    id = Column(BigInteger, primary_key=True, index=True, unique=True)
+    username = Column(String, unique=True)
+    firstname = Column(String(length=20))
+    lastname = Column(String(length=20))
+    password = Column(String(length=250))
+    email = Column(String(length=30))
+    phone = Column(BigInteger)
+    location = Column(String(length=30))
+    is_verified = Column(Boolean, default=False)
+    is_superuser = Column(Boolean, default=False)
+
+    def __str__(self):
+        return f"{self.username}"
+
+    def set_password(self, password):
+        self.password = pwd_context.hash(password)
+
+    # @property
+    # def password(self):
+    #     return self.password
+    #
+    #
+    # def password(self, password):
+    #     self.password = pwd_context.hash(password)
