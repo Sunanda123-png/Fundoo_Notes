@@ -23,11 +23,3 @@ class User(Base):
 
     def set_password(self, password):
         self.password = pwd_context.hash(password)
-
-    # @property
-    # def password(self):
-    #     return self.password
-    #
-    #
-    # def password(self, password):
-    #     self.password = pwd_context.hash(password)

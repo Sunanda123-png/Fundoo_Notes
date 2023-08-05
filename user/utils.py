@@ -3,7 +3,6 @@ import jwt
 from datetime import datetime, timedelta
 from settings import settings
 from os import environ
-from fastapi_mail import FastMail, ConnectionConfig, MessageSchema
 from dotenv import load_dotenv
 import smtplib,ssl
 from email.message import EmailMessage
@@ -50,24 +49,4 @@ def send_mail(email, token):
         smtp.login(user=settings.EMAIL, password=settings.PASSWORD)
         smtp.sendmail(settings.EMAIL, email, message.as_string())
         smtp.quit()
-
-    # conf = ConnectionConfig(
-    #     MAIL_USERNAME="sunanda shil",
-    #     MAIL_PASSWORD=settings.PASSWORD,
-    #     MAIL_FROM=settings.EMAIL,
-    #     MAIL_PORT=587,
-    #     MAIL_SERVER="smtp.gmail.com",
-    #     MAIL_STARTTLS=False,
-    #     MAIL_SSL_TLS=True,
-    #     USE_CREDENTIALS=True,
-    #     VALIDATE_CERTS=True
-    # )
-    # message = MessageSchema(
-    #     subject="Welcome to our website!",
-    #     recipients=[email],
-    #     body=f"Thank you for registering on our website. We are excited to have you!\n{token}",
-    #     subtype="html"
-    # )
-    # fm = FastMail(conf)
-    # await fm.send_message(message)
 
