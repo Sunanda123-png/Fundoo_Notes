@@ -1,5 +1,6 @@
 from core.db import Base
 from sqlalchemy import Column, String, BigInteger, Boolean
+from sqlalchemy.orm import relationship
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -17,6 +18,7 @@ class User(Base):
     location = Column(String(length=30))
     is_verified = Column(Boolean, default=False)
     is_superuser = Column(Boolean, default=False)
+    notes = relationship("Note", back_populates="user")
 
     def __str__(self):
         return f"{self.username}"

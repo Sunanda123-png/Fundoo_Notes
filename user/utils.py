@@ -4,8 +4,9 @@ from datetime import datetime, timedelta
 from settings import settings
 from os import environ
 from dotenv import load_dotenv
-import smtplib,ssl
+import smtplib, ssl
 from email.message import EmailMessage
+from fastapi import Request
 
 load_dotenv()
 
@@ -50,3 +51,6 @@ def send_mail(email, token):
         smtp.sendmail(settings.EMAIL, email, message.as_string())
         smtp.quit()
 
+
+def verify_token(request: Request):
+    print(request.headers)
