@@ -40,7 +40,9 @@ def create_note(request: Request, response: Response, data: NoteValidator, db: S
 def read_note(request: Request, response: Response, db: Session = Depends(get_db)):
     try:
         note = db.query(Note).filter_by(user_id=request.state.user.id).all()
+        print(note)
         notes = [x.to_dict() for x in note]
+        print(notes)
         return {"message": "successfully getting note", "status": 200, "data": notes}
     except Exception as e:
         logger.exception(e)
@@ -74,6 +76,58 @@ def delete_note(response: Response, note_id: int, user: User = Depends(get_token
         db.delete(note)
         db.commit()
         return {"message": "successfully deleted note", "status": 200, "data": note}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.post("/archive/{note_id}")
+def archive(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+    try:
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+        note.is_archive = False if note.is_archive else True
+        db.commit()
+        db.refresh(note)
+        return {"message": "note is archieved", "status": 200, "data": note}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.get("/get_archive/{note_id}")
+def get_archive(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+    try:
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id)
+        notes = [x.to_dict() for x in note]
+        return {"message": "get the archive note", "status": 200, "data": notes}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.post("/trash/{note_id}")
+def trash(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+    try:
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+        note.is_trash = False if note.is_trash else True
+        db.commit()
+        db.refresh(note)
+        return {"message": "note is trashed", "status": 200, "data": note}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.get("/get_trash/{note_id}")
+def get_trash(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+    try:
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id)
+        notes = [x.to_dict() for x in note]
+        return {"message": "get trashed note", "status": 200, "data": notes}
     except Exception as e:
         logger.exception(e)
         response.status_code = status.HTTP_400_BAD_REQUEST
