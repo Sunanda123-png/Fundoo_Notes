@@ -12,8 +12,16 @@ note_router = APIRouter(dependencies=[Depends(get_token)])
 
 @note_router.post("/create_note")
 def create_note(request: Request, response: Response, data: NoteValidator, db: Session = Depends(get_db)):
+    """
+    This function is created for create the Note
+    :param request: request parameter taken for use global variable and get_token which
+    is dependency like request.state.user.id for getting user_id
+    :param response: for getting the response
+    :param data: inputted data in fields
+    :param db: for creating session with database
+    :return: message,status and created note data
+    """
     try:
-
         note = Note(**data.model_dump(), user_id=request.state.user.id)
         db.add(note)
         db.commit()
@@ -25,24 +33,19 @@ def create_note(request: Request, response: Response, data: NoteValidator, db: S
         return {"message": str(e)}
 
 
-# @note_router.get("/notes")
-# def read_notes(response: Response, db: Session = Depends(get_db)):
-#     try:
-#         notes = db.query(Note).all()
-#         return {"message": "successfully get the all notes", "status": 200, "data": notes}
-#     except Exception as e:
-#         logger.exception(e)
-#         response.status_code = status.HTTP_400_BAD_REQUEST
-#         return {"message": str(e)}
-
-
 @note_router.get("/note")
 def read_note(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    This function is created for fetching the note
+    :param request: request parameter taken for use global variable and get_token which
+    is dependency like request.state.user.id for getting user_id
+    :param response: for getting the response
+    :param db: for creating session with database
+    :return: message,status and fetched note data
+    """
     try:
-        note = db.query(Note).filter_by(user_id=request.state.user.id).all()
-        print(note)
+        note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=False, is_trash=False).all()
         notes = [x.to_dict() for x in note]
-        print(notes)
         return {"message": "successfully getting note", "status": 200, "data": notes}
     except Exception as e:
         logger.exception(e)
@@ -53,6 +56,15 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
 @note_router.put("/update_note/{note_id}")
 def update_note(response: Response, updated_note: NoteValidator, note_id: int, user: User = Depends(get_token),
                 db: Session = Depends(get_db)):
+    """
+    This function is created for update the note
+    :param response: for getting the response
+    :param updated_note: inputted  updated data in fields
+    :param note_id: which note need to be updated
+    :param user: instead use global variable it's another method for getting user_id from token
+    :param db: for creating session with database
+    :return: message,status and updated note data
+    """
     try:
         note = db.query(Note).filter_by(id=note_id, user_id=user.id).first()
         if note is None:
@@ -69,6 +81,14 @@ def update_note(response: Response, updated_note: NoteValidator, note_id: int, u
 
 @note_router.delete("/delete_note/{note_id}")
 def delete_note(response: Response, note_id: int, user: User = Depends(get_token), db: Session = Depends(get_db)):
+    """
+    This function is created for delete the note
+    :param response: for getting the response
+    :param note_id: which note need to delete
+    :param user: instead use global variable it's another method for getting user_id from token
+    :param db: for creating session with database
+    :return: message,status and deleted note data
+    """
     try:
         note = db.query(Note).filter_by(id=note_id, user_id=user.id).first()
         if note is None:
@@ -84,6 +104,14 @@ def delete_note(response: Response, note_id: int, user: User = Depends(get_token
 
 @note_router.post("/archive/{note_id}")
 def archive(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+    """
+    This function is created for archiving note with just making condition True and False
+    :param request:  request parameter taken for use global variable and get_token which from their we will get user id
+    :param response: for getting the response
+    :param note_id: which note need to be archived
+    :param db: for creating session with database
+    :return: message,status and archived note data
+    """
     try:
         note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
         note.is_archive = False if note.is_archive else True
@@ -96,10 +124,10 @@ def archive(request: Request, response: Response, note_id: int, db: Session = De
         return {"message": str(e)}
 
 
-@note_router.get("/get_archive/{note_id}")
-def get_archive(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+@note_router.get("/get_archive")
+def get_archive(request: Request, response: Response, db: Session = Depends(get_db)):
     try:
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id)
+        note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=True)
         notes = [x.to_dict() for x in note]
         return {"message": "get the archive note", "status": 200, "data": notes}
     except Exception as e:
@@ -122,10 +150,10 @@ def trash(request: Request, response: Response, note_id: int, db: Session = Depe
         return {"message": str(e)}
 
 
-@note_router.get("/get_trash/{note_id}")
-def get_trash(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
+@note_router.get("/get_trash")
+def get_trash(request: Request, response: Response, db: Session = Depends(get_db)):
     try:
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id)
+        note = db.query(Note).filter_by(user_id=request.state.user.id, is_trash=True)
         notes = [x.to_dict() for x in note]
         return {"message": "get trashed note", "status": 200, "data": notes}
     except Exception as e:

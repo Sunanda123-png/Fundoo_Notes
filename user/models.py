@@ -19,6 +19,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     is_superuser = Column(Boolean, default=False)
     notes = relationship("Note", back_populates="user")
+    labels = relationship("Labels", back_populates="user")
 
     def __str__(self):
         return f"{self.username}"
