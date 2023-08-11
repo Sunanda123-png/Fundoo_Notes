@@ -52,5 +52,5 @@ def send_mail(email, token):
         smtp.quit()
 
 
-def verify_token(request: Request):
-    print(request.headers)
+# def verify_token(request: Request):
+#     print(request.headers)

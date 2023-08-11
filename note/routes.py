@@ -5,7 +5,7 @@ from settings import logger
 from fastapi import APIRouter, Response, Depends, status, HTTPException, Request
 from sqlalchemy.orm import Session
 from user.models import User
-from .utils import get_token
+from .utils import get_token, Cache
 
 note_router = APIRouter(dependencies=[Depends(get_token)])
 
@@ -26,6 +26,7 @@ def create_note(request: Request, response: Response, data: NoteValidator, db: S
         db.add(note)
         db.commit()
         db.refresh(note)
+        Cache.save(request.state.user.id, note.to_dict())
         return {"message": "successfully added note", "status": 201, "data": note}
     except Exception as e:
         logger.exception(e)
@@ -44,6 +45,9 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
     :return: message,status and fetched note data
     """
     try:
+        cached_notes = Cache.get_notes(request.state.user.id)
+        if cached_notes:
+            return {"message": "successfully getting note from cached", "status": 200, "data": cached_notes}
         note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=False, is_trash=False).all()
         notes = [x.to_dict() for x in note]
         return {"message": "successfully getting note", "status": 200, "data": notes}
@@ -54,10 +58,12 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
 
 
 @note_router.put("/update_note/{note_id}")
-def update_note(response: Response, updated_note: NoteValidator, note_id: int, user: User = Depends(get_token),
-                db: Session = Depends(get_db)):
+def update_note(request: Request, response: Response, updated_note: NoteValidator, note_id: int,
+                user: User = Depends(get_token), db: Session = Depends(get_db)):
     """
     This function is created for update the note
+    :param request: request parameter taken for use global variable and get_token which
+    is dependency like request.state.user.id for getting user_id
     :param response: for getting the response
     :param updated_note: inputted  updated data in fields
     :param note_id: which note need to be updated
@@ -72,6 +78,7 @@ def update_note(response: Response, updated_note: NoteValidator, note_id: int, u
         [setattr(note, key, val) for key, val in updated_note.model_dump().items()]
         db.commit()
         db.refresh(note)
+        Cache.save(request.state.user.id, note.to_dict())
         return {"message": "successfully updated note", "status": 201, "data": note}
     except Exception as e:
         logger.exception(e)
@@ -80,9 +87,11 @@ def update_note(response: Response, updated_note: NoteValidator, note_id: int, u
 
 
 @note_router.delete("/delete_note/{note_id}")
-def delete_note(response: Response, note_id: int, user: User = Depends(get_token), db: Session = Depends(get_db)):
+def delete_note(request: Request,response: Response, note_id: int, user: User = Depends(get_token), db: Session = Depends(get_db)):
     """
     This function is created for delete the note
+    :param request: request parameter taken for use global variable and get_token which
+    is dependency like request.state.user.id for getting user_id
     :param response: for getting the response
     :param note_id: which note need to delete
     :param user: instead use global variable it's another method for getting user_id from token
@@ -90,7 +99,8 @@ def delete_note(response: Response, note_id: int, user: User = Depends(get_token
     :return: message,status and deleted note data
     """
     try:
-        note = db.query(Note).filter_by(id=note_id, user_id=user.id).first()
+        Cache.delete_note(request.state.user.id, note_id)
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
         if note is None:
             raise HTTPException(status_code=404, detail=" Note not found")
         db.delete(note)
@@ -117,6 +127,7 @@ def archive(request: Request, response: Response, note_id: int, db: Session = De
         note.is_archive = False if note.is_archive else True
         db.commit()
         db.refresh(note)
+        Cache.save(request.state.user.id, note.to_dict())
         return {"message": "note is archieved", "status": 200, "data": note}
     except Exception as e:
         logger.exception(e)
@@ -143,6 +154,7 @@ def trash(request: Request, response: Response, note_id: int, db: Session = Depe
         note.is_trash = False if note.is_trash else True
         db.commit()
         db.refresh(note)
+        Cache.save(request.state.user.id, note.to_dict())
         return {"message": "note is trashed", "status": 200, "data": note}
     except Exception as e:
         logger.exception(e)
