@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     EMAIL: str
     PASSWORD: str
     BASE_URL: str
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
 
 
 settings = Settings()

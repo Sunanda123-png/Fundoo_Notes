@@ -6,7 +6,7 @@ from .models import User, pwd_context
 from settings import logger,settings
 from .utils import create_access_token, decode_access_token, send_mail
 from fastapi_mail import MessageSchema
-
+from tasks import send_notification
 router = APIRouter()
 
 
@@ -26,7 +26,7 @@ def register_user(response: Response, data: UserValidator, db: Session = Depends
         db.commit()
         db.refresh(user)
         token = f"{settings.BASE_URL}/verify?token={create_access_token({'user': user.id})}"
-        send_mail(user.email, token)
+        send_notification.delay(user.email, token, "user registration")
         return {"message": "Registration successful. Welcome message send", "status": 201, "data": user}
     except Exception as e:
         logger.exception(str(e))

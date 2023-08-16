@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from core.db import get_db
 from user.models import User
 import redis
+from redbeat import RedBeatSchedulerEntry as Task
+from celery.schedules import crontab
+from  tasks import celery
 
 
 def get_token(request: Request, db: Session = Depends(get_db)):
@@ -52,3 +55,15 @@ class Cache:
         note_id = f"note_{note_id}"
         deleted = cls.client.hdel(user_id, note_id)
         return deleted == 1
+
+
+def add_reminder(note):
+    reminders = note.reminder
+    if reminders:
+        task = Task(name=f'{note.user_id}_{note.id}',
+                    task='tasks.send_notification',
+                    schedule=crontab(minute=reminders.minute, hour=reminders.hour, day_of_month=reminders.day,
+                                     month_of_year=reminders.month),
+                    app=celery,
+                    args=[note.user.email, note.description, note.title])
+        task.save()

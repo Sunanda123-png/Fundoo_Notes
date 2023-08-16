@@ -5,7 +5,8 @@ from settings import logger
 from fastapi import APIRouter, Response, Depends, status, HTTPException, Request
 from sqlalchemy.orm import Session
 from user.models import User
-from .utils import get_token, Cache
+from .utils import get_token, Cache, add_reminder
+
 
 note_router = APIRouter(dependencies=[Depends(get_token)])
 
@@ -23,11 +24,13 @@ def create_note(request: Request, response: Response, data: NoteValidator, db: S
     """
     try:
         note = Note(**data.model_dump(), user_id=request.state.user.id)
+
         db.add(note)
         db.commit()
         db.refresh(note)
         Cache.save(request.state.user.id, note.to_dict())
-        return {"message": "successfully added note", "status": 201, "data": note}
+        add_reminder(note)
+        return {"message": "successfully added note", "status": 201, "data": note.to_dict()}
     except Exception as e:
         logger.exception(e)
         response.status_code = status.HTTP_400_BAD_REQUEST
