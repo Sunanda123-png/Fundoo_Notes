@@ -1,14 +1,14 @@
 from core.db import get_db
 from .models import Note
-from .schemas import NoteValidator
+from .schemas import NoteValidator, CollaboratorValidator
 from settings import logger
 from fastapi import APIRouter, Response, Depends, status, HTTPException, Request
+
 from sqlalchemy.orm import Session
 from user.models import User
 from .utils import get_token, Cache, add_reminder
 
-
-note_router = APIRouter(dependencies=[Depends(get_token)])
+note_router = APIRouter()
 
 
 @note_router.post("/create_note")
@@ -52,7 +52,10 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
         if cached_notes:
             return {"message": "successfully getting note from cached", "status": 200, "data": cached_notes}
         note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=False, is_trash=False).all()
+
         notes = [x.to_dict() for x in note]
+        collab_notes = [x.to_dict() for x in request.state.user.notes_m2m]
+        notes.extend(collab_notes)
         return {"message": "successfully getting note", "status": 200, "data": notes}
     except Exception as e:
         logger.exception(e)
@@ -90,7 +93,8 @@ def update_note(request: Request, response: Response, updated_note: NoteValidato
 
 
 @note_router.delete("/delete_note/{note_id}")
-def delete_note(request: Request,response: Response, note_id: int, user: User = Depends(get_token), db: Session = Depends(get_db)):
+def delete_note(request: Request, response: Response, note_id: int, user: User = Depends(get_token),
+                db: Session = Depends(get_db)):
     """
     This function is created for delete the note
     :param request: request parameter taken for use global variable and get_token which
@@ -171,6 +175,54 @@ def get_trash(request: Request, response: Response, db: Session = Depends(get_db
         note = db.query(Note).filter_by(user_id=request.state.user.id, is_trash=True)
         notes = [x.to_dict() for x in note]
         return {"message": "get trashed note", "status": 200, "data": notes}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.post("/collaborator")
+def add_collaborator(request: Request,response: Response, data: CollaboratorValidator, db: Session = Depends(get_db)):
+    try:
+        data = data.model_dump()
+        note_id = data.get("note_id")
+        user_ids = data.get("user_ids", [])
+        is_update = data.get("is_update", False)
+
+        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        for user_id in user_ids:
+            user = db.query(User).filter_by(id=user_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User is not found")
+            if user not in note.collaborators:
+                note.collaborators.append(user)
+        db.commit()
+        return {"message": "User added to note", "status": 201, "data": note}
+    except Exception as e:
+        logger.exception(e)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": str(e)}
+
+
+@note_router.delete("/delete_collaborator")
+def delete_collaborator(request: Request, response: Response, data: CollaboratorValidator,db: Session = Depends(get_db)):
+    try:
+        note = db.query(Note).filter_by(id=data.note_id, user_id=request.state.user.id).first()
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        for user_id in data.user_ids:
+            user = db.query(User).filter_by(id=user_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User is not found")
+            # collaborator = Collaborator(user=user)
+            if user in note.collaborators:
+                note.collaborators.remove(user)
+        db.commit()
+        return {"message": "User deleted from note", "status": 201, "data": note}
+
     except Exception as e:
         logger.exception(e)
         response.status_code = status.HTTP_400_BAD_REQUEST
