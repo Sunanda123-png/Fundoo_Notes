@@ -9,7 +9,7 @@ from user.models import User
 import redis
 from redbeat import RedBeatSchedulerEntry as Task
 from celery.schedules import crontab
-from  tasks import celery
+from tasks import celery
 
 
 def get_token(request: Request, db: Session = Depends(get_db)):
@@ -67,3 +67,13 @@ def add_reminder(note):
                     app=celery,
                     args=[note.user.email, note.description, note.title])
         task.save()
+
+
+class CustomException(Exception):
+    def __init__(self, message='Bad Request', status_code=400):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f'{self.message}'

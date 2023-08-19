@@ -1,12 +1,12 @@
 from core.db import get_db
-from .models import Note
+from .models import Note, Collaborator
 from .schemas import NoteValidator, CollaboratorValidator
 from settings import logger
 from fastapi import APIRouter, Response, Depends, status, HTTPException, Request
 
 from sqlalchemy.orm import Session
 from user.models import User
-from .utils import get_token, Cache, add_reminder
+from .utils import get_token, Cache, add_reminder, CustomException
 
 note_router = APIRouter()
 
@@ -65,7 +65,7 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
 
 @note_router.put("/update_note/{note_id}")
 def update_note(request: Request, response: Response, updated_note: NoteValidator, note_id: int,
-                user: User = Depends(get_token), db: Session = Depends(get_db)):
+                db: Session = Depends(get_db)):
     """
     This function is created for update the note
     :param request: request parameter taken for use global variable and get_token which
@@ -77,19 +77,25 @@ def update_note(request: Request, response: Response, updated_note: NoteValidato
     :param db: for creating session with database
     :return: message,status and updated note data
     """
-    try:
-        note = db.query(Note).filter_by(id=note_id, user_id=user.id).first()
-        if note is None:
-            raise HTTPException(status_code=404, detail=" Note not found")
-        [setattr(note, key, val) for key, val in updated_note.model_dump().items()]
-        db.commit()
-        db.refresh(note)
-        Cache.save(request.state.user.id, note.to_dict())
-        return {"message": "successfully updated note", "status": 201, "data": note}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    # try:
+    raise CustomException(message="Not executable", status_code=404)
+    note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+    if note is None:
+        collaborator = db.query(Collaborator).filter_by(note_id=note_id, user_id=request.state.user.id,
+                                                        is_update=True).first()
+        if collaborator:
+            note = db.query(Note).filter_by(id=note_id).first()
+        else:
+            raise Exception(" Note not found or permission denied")
+    [setattr(note, key, val) for key, val in updated_note.model_dump().items() if key != "user_id"]
+    db.commit()
+    db.refresh(note)
+    Cache.save(request.state.user.id, note.to_dict())
+    return {"message": "successfully updated note", "status": 201, "data": note}
+    # except Exception as e:
+    #     logger.exception(e)
+    #     response.status_code = status.HTTP_400_BAD_REQUEST
+    #     return {"message": str(e)}
 
 
 @note_router.delete("/delete_note/{note_id}")
@@ -182,7 +188,7 @@ def get_trash(request: Request, response: Response, db: Session = Depends(get_db
 
 
 @note_router.post("/collaborator")
-def add_collaborator(request: Request,response: Response, data: CollaboratorValidator, db: Session = Depends(get_db)):
+def add_collaborator(request: Request, response: Response, data: CollaboratorValidator, db: Session = Depends(get_db)):
     try:
         data = data.model_dump()
         note_id = data.get("note_id")
@@ -193,12 +199,16 @@ def add_collaborator(request: Request,response: Response, data: CollaboratorVali
 
         if not note:
             raise HTTPException(status_code=404, detail="Note not found")
+        collab_obj = []
         for user_id in user_ids:
             user = db.query(User).filter_by(id=user_id).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User is not found")
             if user not in note.collaborators:
-                note.collaborators.append(user)
+                # note.collaborators.append(user)
+                collaborator = Collaborator(user_id=user.id, note_id=note.id, is_update=is_update)
+                collab_obj.append(collaborator)
+        db.add_all(collab_obj)
         db.commit()
         return {"message": "User added to note", "status": 201, "data": note}
     except Exception as e:
@@ -208,7 +218,8 @@ def add_collaborator(request: Request,response: Response, data: CollaboratorVali
 
 
 @note_router.delete("/delete_collaborator")
-def delete_collaborator(request: Request, response: Response, data: CollaboratorValidator,db: Session = Depends(get_db)):
+def delete_collaborator(request: Request, response: Response, data: CollaboratorValidator,
+                        db: Session = Depends(get_db)):
     try:
         note = db.query(Note).filter_by(id=data.note_id, user_id=request.state.user.id).first()
         if not note:

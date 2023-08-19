@@ -27,3 +27,4 @@ class User(Base):
 
     def set_password(self, password):
         self.password = pwd_context.hash(password)
+        return self.password

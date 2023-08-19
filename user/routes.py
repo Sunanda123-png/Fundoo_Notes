@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, Request, Response, status, HTTPException, BackgroundTasks
 from core.db import get_db
-from .schemas import UserValidator, LoginUser
+from .schemas import UserValidator, LoginUser, ForgetPassword, ResetPassword
 from sqlalchemy.orm import Session
 from .models import User, pwd_context
-from settings import logger,settings
+from settings import logger, settings
 from .utils import create_access_token, decode_access_token, send_mail
 from fastapi_mail import MessageSchema
 from tasks import send_notification
+from note.utils import CustomException
+
 router = APIRouter()
 
 
@@ -43,16 +45,18 @@ def login_user(response: Response, login: LoginUser, db: Session = Depends(get_d
     :param db: for session creation for checking data is present in db or not
     :return: message and generated token
     """
-    try:
-        user = db.query(User).filter(User.username == login.username).first()
-        if not user and not pwd_context.verify(login.password, user.password) and user.is_verified:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credentials")
-        token = create_access_token(data={"user": user.id})
-        return {"message": "Login successful", "token": token, "status": 200}
-    except Exception as e:
-        logger.exception(str(e))
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    # try:
+    user = db.query(User).filter(User.username == login.username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not pwd_context.verify(login.password, user.password) and user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credentials")
+    token = create_access_token(data={"user": user.id})
+    return {"message": "Login successful", "token": token, "status": 200}
+    # except Exception as e:
+    #     logger.exception(str(e))
+    #     response.status_code = status.HTTP_400_BAD_REQUEST
+    #     return {"message": str(e)}
 
 
 @router.get("/verify")
@@ -65,12 +69,31 @@ def verify(response: Response, token: str, payload: dict = Depends(decode_access
         user_details = db.query(User).filter_by(id=user_id).first()
         user_details.is_verified = True
         db.commit()
-        return {"message":"User verification is successful", "status": 200}
+        return {"message": "User verification is successful", "status": 200}
     except Exception as e:
         logger.exception(str(e))
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {"message": str(e)}
 
 
+@router.post("/forget_password")
+def forget_password(data: ForgetPassword, db: Session = Depends(get_db)):
+    user = db.query(User).filter_by(username=data.username, email=data.email).first()
+    if not user:
+        raise CustomException(message="User not found", status_code=404)
+    token = f"{settings.BASE_URL}/reset_password?token={create_access_token({'user': user.id})}"
+    send_notification.delay(user.email, token, "reset password")
+    return {"message": "Reset link sent to mail", "status": 200}
 
 
+@router.post("/reset_password")
+def reset_password(token: str, data: ResetPassword, payload: dict = Depends(decode_access_token),
+                   db: Session = Depends(get_db)):
+    if data.password != data.confirm_password:
+        raise CustomException(message="Password mismatched", status_code=400)
+    user = db.query(User).filter_by(id=payload.get('user')).first()
+    if not user:
+        raise CustomException(message="User not found", status_code=404)
+    user.password = user.set_password(data.password)
+    db.commit()
+    return {"message": "Password set successfully", "status": 200}
