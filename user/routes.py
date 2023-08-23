@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, Request, Response, status, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
 from core.db import get_db
 from .schemas import UserValidator, LoginUser, ForgetPassword, ResetPassword
 from sqlalchemy.orm import Session
 from .models import User, pwd_context
 from settings import logger, settings
-from .utils import create_access_token, decode_access_token, send_mail
-from fastapi_mail import MessageSchema
+from .utils import create_access_token, decode_access_token
 from tasks import send_notification
 from note.utils import CustomException
 
@@ -45,35 +44,25 @@ def login_user(response: Response, login: LoginUser, db: Session = Depends(get_d
     :param db: for session creation for checking data is present in db or not
     :return: message and generated token
     """
-    # try:
     user = db.query(User).filter(User.username == login.username).first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise CustomException(message="Invalid Credential", status_code=400)
     if not pwd_context.verify(login.password, user.password) and user.is_verified:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid credentials")
+        raise CustomException(message="Invalid Credential", status_code=400)
     token = create_access_token(data={"user": user.id})
     return {"message": "Login successful", "token": token, "status": 200}
-    # except Exception as e:
-    #     logger.exception(str(e))
-    #     response.status_code = status.HTTP_400_BAD_REQUEST
-    #     return {"message": str(e)}
 
 
 @router.get("/verify")
 def verify(response: Response, token: str, payload: dict = Depends(decode_access_token),
            db: Session = Depends(get_db)):
-    try:
-        user_id = payload.get('user')
-        if not user_id:
-            raise Exception("Invalid user")
-        user_details = db.query(User).filter_by(id=user_id).first()
-        user_details.is_verified = True
-        db.commit()
-        return {"message": "User verification is successful", "status": 200}
-    except Exception as e:
-        logger.exception(str(e))
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    user_id = payload.get('user')
+    if not user_id:
+        raise CustomException(message="Invalid user", status_code=404)
+    user_details = db.query(User).filter_by(id=user_id).first()
+    user_details.is_verified = True
+    db.commit()
+    return {"message": "User verification is successful", "status": 200}
 
 
 @router.post("/forget_password")

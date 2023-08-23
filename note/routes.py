@@ -22,19 +22,14 @@ def create_note(request: Request, response: Response, data: NoteValidator, db: S
     :param db: for creating session with database
     :return: message,status and created note data
     """
-    try:
-        note = Note(**data.model_dump(), user_id=request.state.user.id)
+    note = Note(**data.model_dump(), user_id=request.state.user.id)
 
-        db.add(note)
-        db.commit()
-        db.refresh(note)
-        Cache.save(request.state.user.id, note.to_dict())
-        add_reminder(note)
-        return {"message": "successfully added note", "status": 201, "data": note.to_dict()}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    Cache.save(request.state.user.id, note.to_dict())
+    add_reminder(note)
+    return {"message": "successfully added note", "status": 201, "data": note.to_dict()}
 
 
 @note_router.get("/note")
@@ -47,20 +42,15 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
     :param db: for creating session with database
     :return: message,status and fetched note data
     """
-    try:
-        cached_notes = Cache.get_notes(request.state.user.id)
-        if cached_notes:
-            return {"message": "successfully getting note from cached", "status": 200, "data": cached_notes}
-        note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=False, is_trash=False).all()
+    cached_notes = Cache.get_notes(request.state.user.id)
+    if cached_notes:
+        return {"message": "successfully getting note from cached", "status": 200, "data": cached_notes}
+    note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=False, is_trash=False).all()
 
-        notes = [x.to_dict() for x in note]
-        collab_notes = [x.to_dict() for x in request.state.user.notes_m2m]
-        notes.extend(collab_notes)
-        return {"message": "successfully getting note", "status": 200, "data": notes}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    notes = [x.to_dict() for x in note]
+    collab_notes = [x.to_dict() for x in request.state.user.notes_m2m]
+    notes.extend(collab_notes)
+    return {"message": "successfully getting note", "status": 200, "data": notes}
 
 
 @note_router.put("/update_note/{note_id}")
@@ -77,8 +67,6 @@ def update_note(request: Request, response: Response, updated_note: NoteValidato
     :param db: for creating session with database
     :return: message,status and updated note data
     """
-    # try:
-    raise CustomException(message="Not executable", status_code=404)
     note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
     if note is None:
         collaborator = db.query(Collaborator).filter_by(note_id=note_id, user_id=request.state.user.id,
@@ -92,10 +80,6 @@ def update_note(request: Request, response: Response, updated_note: NoteValidato
     db.refresh(note)
     Cache.save(request.state.user.id, note.to_dict())
     return {"message": "successfully updated note", "status": 201, "data": note}
-    # except Exception as e:
-    #     logger.exception(e)
-    #     response.status_code = status.HTTP_400_BAD_REQUEST
-    #     return {"message": str(e)}
 
 
 @note_router.delete("/delete_note/{note_id}")
@@ -111,18 +95,13 @@ def delete_note(request: Request, response: Response, note_id: int, user: User =
     :param db: for creating session with database
     :return: message,status and deleted note data
     """
-    try:
-        Cache.delete_note(request.state.user.id, note_id)
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
-        if note is None:
-            raise HTTPException(status_code=404, detail=" Note not found")
-        db.delete(note)
-        db.commit()
-        return {"message": "successfully deleted note", "status": 200, "data": note}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    Cache.delete_note(request.state.user.id, note_id)
+    note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+    if note is None:
+        raise HTTPException(status_code=404, detail=" Note not found")
+    db.delete(note)
+    db.commit()
+    return {"message": "successfully deleted note", "status": 200, "data": note}
 
 
 @note_router.post("/archive/{note_id}")
@@ -135,106 +114,75 @@ def archive(request: Request, response: Response, note_id: int, db: Session = De
     :param db: for creating session with database
     :return: message,status and archived note data
     """
-    try:
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
-        note.is_archive = False if note.is_archive else True
-        db.commit()
-        db.refresh(note)
-        Cache.save(request.state.user.id, note.to_dict())
-        return {"message": "note is archieved", "status": 200, "data": note}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+    note.is_archive = False if note.is_archive else True
+    db.commit()
+    db.refresh(note)
+    Cache.save(request.state.user.id, note.to_dict())
+    return {"message": "note is archieved", "status": 200, "data": note}
 
 
 @note_router.get("/get_archive")
 def get_archive(request: Request, response: Response, db: Session = Depends(get_db)):
-    try:
-        note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=True)
-        notes = [x.to_dict() for x in note]
-        return {"message": "get the archive note", "status": 200, "data": notes}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    note = db.query(Note).filter_by(user_id=request.state.user.id, is_archive=True)
+    notes = [x.to_dict() for x in note]
+    return {"message": "get the archive note", "status": 200, "data": notes}
 
 
 @note_router.post("/trash/{note_id}")
 def trash(request: Request, response: Response, note_id: int, db: Session = Depends(get_db)):
-    try:
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
-        note.is_trash = False if note.is_trash else True
-        db.commit()
-        db.refresh(note)
-        Cache.save(request.state.user.id, note.to_dict())
-        return {"message": "note is trashed", "status": 200, "data": note}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+    note.is_trash = False if note.is_trash else True
+    db.commit()
+    db.refresh(note)
+    Cache.save(request.state.user.id, note.to_dict())
+    return {"message": "note is trashed", "status": 200, "data": note}
 
 
 @note_router.get("/get_trash")
 def get_trash(request: Request, response: Response, db: Session = Depends(get_db)):
-    try:
-        note = db.query(Note).filter_by(user_id=request.state.user.id, is_trash=True)
-        notes = [x.to_dict() for x in note]
-        return {"message": "get trashed note", "status": 200, "data": notes}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    note = db.query(Note).filter_by(user_id=request.state.user.id, is_trash=True)
+    notes = [x.to_dict() for x in note]
+    return {"message": "get trashed note", "status": 200, "data": notes}
 
 
 @note_router.post("/collaborator")
 def add_collaborator(request: Request, response: Response, data: CollaboratorValidator, db: Session = Depends(get_db)):
-    try:
-        data = data.model_dump()
-        note_id = data.get("note_id")
-        user_ids = data.get("user_ids", [])
-        is_update = data.get("is_update", False)
+    data = data.model_dump()
+    note_id = data.get("note_id")
+    user_ids = data.get("user_ids", [])
+    is_update = data.get("is_update", False)
 
-        note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
+    note = db.query(Note).filter_by(id=note_id, user_id=request.state.user.id).first()
 
-        if not note:
-            raise HTTPException(status_code=404, detail="Note not found")
-        collab_obj = []
-        for user_id in user_ids:
-            user = db.query(User).filter_by(id=user_id).first()
-            if not user:
-                raise HTTPException(status_code=404, detail="User is not found")
-            if user not in note.collaborators:
-                # note.collaborators.append(user)
-                collaborator = Collaborator(user_id=user.id, note_id=note.id, is_update=is_update)
-                collab_obj.append(collaborator)
-        db.add_all(collab_obj)
-        db.commit()
-        return {"message": "User added to note", "status": 201, "data": note}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    collab_obj = []
+    for user_id in user_ids:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User is not found")
+        if user not in note.collaborators:
+            # note.collaborators.append(user)
+            collaborator = Collaborator(user_id=user.id, note_id=note.id, is_update=is_update)
+            collab_obj.append(collaborator)
+    db.add_all(collab_obj)
+    db.commit()
+    return {"message": "User added to note", "status": 201, "data": note}
 
 
 @note_router.delete("/delete_collaborator")
 def delete_collaborator(request: Request, response: Response, data: CollaboratorValidator,
                         db: Session = Depends(get_db)):
-    try:
-        note = db.query(Note).filter_by(id=data.note_id, user_id=request.state.user.id).first()
-        if not note:
-            raise HTTPException(status_code=404, detail="Note not found")
-        for user_id in data.user_ids:
-            user = db.query(User).filter_by(id=user_id).first()
-            if not user:
-                raise HTTPException(status_code=404, detail="User is not found")
-            # collaborator = Collaborator(user=user)
-            if user in note.collaborators:
-                note.collaborators.remove(user)
-        db.commit()
-        return {"message": "User deleted from note", "status": 201, "data": note}
-
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    note = db.query(Note).filter_by(id=data.note_id, user_id=request.state.user.id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    for user_id in data.user_ids:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User is not found")
+        # collaborator = Collaborator(user=user)
+        if user in note.collaborators:
+            note.collaborators.remove(user)
+    db.commit()
+    return {"message": "User deleted from note", "status": 201, "data": note}

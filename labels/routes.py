@@ -1,53 +1,47 @@
-from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
-from .models import Labels
+from fastapi import APIRouter, Depends, Request, Response
 from .schemas import LabelsValidator
 from note.utils import get_token
 from core.db import get_db
 from sqlalchemy.orm import Session
-from settings import logger
+from psycopg2 import connect
 
+connection = connect('dbname=fundoo_notes user=postgres')
+cursor = connection.cursor()
 label_router = APIRouter(dependencies=[Depends(get_token)])
 
 
 @label_router.post("/create_labels")
-def create_labels(request: Request, response: Response, data: LabelsValidator, db: Session = Depends(get_db)):
+def create_labels(request: Request, data: LabelsValidator):
     """
     This function is created for creating label
     :param request: request parameter taken for use global variable and get_token which from their we will get user id
-    :param response: for getting the response
     :param data: inputted data in fields for creating label
-    :param db: for creating session with database
     :return: message,status and label data
     """
-    try:
-        label = Labels(**data.model_dump(), user_id=request.state.user.id)
-        db.add(label)
-        db.commit()
-        db.refresh(label)
-        return {"message": "Successfully created labels", "status": 201, "data": label}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    query = "INSERT INTO labels (name, colour_field, user_id) VALUES (%s, %s, %s)"
+    query_lst = [data.name, data.colour_field, request.state.user.id]
+    cursor.execute(query, query_lst)
+    connection.commit()
+
+    # fetch the data from data base
+    select_query = "SELECT * FROM labels ORDER BY id DESC fetch first row only"
+    cursor.execute(select_query)
+    columns = [row[0] for row in cursor.description]
+    labels = dict(zip(columns, cursor.fetchone()))
+    return {"message": "Successfully created labels", "status": 201, "data": labels}
 
 
 @label_router.get("/get_label")
-def fetching_labels(request: Request, response: Response, db: Session = Depends(get_db)):
+def fetching_labels(request: Request):
     """
     This function is created for fetching label
     :param request: request parameter taken for use global variable and get_token which from their we will get user id
-    :param response: for getting the response
-    :param db: for creating session with database
     :return: message,status and label data
     """
-    try:
-        label = db.query(Labels).filter_by(user_id=request.state.user.id).all()
-        labels = [x.to_dict() for x in label]
-        return {"message": "Successfully fetched labels", "status": 200, "data": labels}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    cursor.execute('SELECT * FROM Labels WHERE user_id=%s', [request.state.user.id])
+    columns = [row[0] for row in cursor.description]
+    labels = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    return {"message": "Successfully fetched labels", "status": 200, "data": labels}
 
 
 @label_router.put("/update_label/{label_id}")
@@ -62,18 +56,18 @@ def update_label(request: Request, response: Response, label_id: int, updated_la
     :param db: for creating session with database
     :return: message,status and updated label data
     """
-    try:
-        label = db.query(Labels).filter_by(id=label_id, user_id=request.state.user.id).first()
-        if label is None:
-            raise HTTPException(status_code=404, detail=" label not found")
-        [setattr(label, key, val) for key, val in updated_label.model_dump().items()]
-        db.commit()
-        db.refresh(label)
-        return {"message": "successfully updated label", "status": 201, "data": label}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+
+    query = "UPDATE labels SET name = %s, colour_field = %s, user_id = %s WHERE id = %s"
+    query_params = [updated_label.name, updated_label.colour_field, request.state.user.id, label_id]
+    cursor.execute(query, query_params)
+    connection.commit()
+
+    # fetch the updated value
+    select_query = "SELECT * FROM labels WHERE id=%s"
+    cursor.execute(select_query, [label_id])
+    columns = [row[0] for row in cursor.description]
+    labels = dict(zip(columns, cursor.fetchone()))
+    return {"message": "successfully updated label", "status": 201, "data": labels}
 
 
 @label_router.delete("/delete_label/{label_id}")
@@ -86,12 +80,8 @@ def delete_label(request: Request, response: Response, label_id: int, db: Sessio
     :param db: for creating session with database
     :return: message,status and data
     """
-    try:
-        label = db.query(Labels).filter_by(id=label_id, user_id=request.state.user.id).first()
-        db.delete(label)
-        db.commit()
-        return {"message": "successfully deleted label", "status": 200, "data": label}
-    except Exception as e:
-        logger.exception(e)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"message": str(e)}
+    query = "DELETE FROM labels  WHERE id = %s AND user_id = %s"
+    query_params = [label_id, request.state.user.id]
+    cursor.execute(query, query_params)
+    connection.commit()
+    return {"message": "successfully deleted label", "status": 200}

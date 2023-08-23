@@ -6,6 +6,7 @@ from user.routes import router as user
 from note.routes import note_router as note
 from labels.routes import label_router as labels
 from note.utils import CustomException
+from settings import logger
 app = FastAPI()
 
 
@@ -14,13 +15,16 @@ async def exception_handler(request: Request, call_next):
     try:
         response = await call_next(request)
     except CustomException as ce:
+        logger.exception(ce)
         response = Response(content=json.dumps({'message': str(ce.message), 'status': ce.status_code}),
                             status_code=ce.status_code,
                             media_type='application/json')
     except Exception as ex:
+        logger.exception(ex)
         response = Response(content=json.dumps({'message': str(ex), 'status': 400}),
                              status_code=400,
                              media_type='application/json')
+
     return response
 
 
