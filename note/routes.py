@@ -11,7 +11,7 @@ from .utils import get_token, Cache, add_reminder, CustomException
 note_router = APIRouter()
 
 
-@note_router.post("/create_note")
+@note_router.post("/create_note", status_code=201)
 def create_note(request: Request, response: Response, data: NoteValidator, db: Session = Depends(get_db)):
     """
     This function is created for create the Note
@@ -53,7 +53,7 @@ def read_note(request: Request, response: Response, db: Session = Depends(get_db
     return {"message": "successfully getting note", "status": 200, "data": notes}
 
 
-@note_router.put("/update_note/{note_id}")
+@note_router.put("/update_note/{note_id}", status_code=201)
 def update_note(request: Request, response: Response, updated_note: NoteValidator, note_id: int,
                 db: Session = Depends(get_db)):
     """

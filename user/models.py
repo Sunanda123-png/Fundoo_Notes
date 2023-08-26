@@ -2,6 +2,7 @@ from core.db import Base
 from sqlalchemy import Column, String, BigInteger, Boolean
 from sqlalchemy.orm import relationship
 from passlib.context import CryptContext
+import labels.models
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

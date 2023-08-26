@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
+from fastapi import APIRouter, Depends, Request, Response, status
 from core.db import get_db
 from .schemas import UserValidator, LoginUser, ForgetPassword, ResetPassword
 from sqlalchemy.orm import Session

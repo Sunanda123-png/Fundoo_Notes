@@ -10,7 +10,7 @@ cursor = connection.cursor()
 label_router = APIRouter(dependencies=[Depends(get_token)])
 
 
-@label_router.post("/create_labels")
+@label_router.post("/create_labels", status_code=201)
 def create_labels(request: Request, data: LabelsValidator):
     """
     This function is created for creating label
@@ -44,7 +44,7 @@ def fetching_labels(request: Request):
     return {"message": "Successfully fetched labels", "status": 200, "data": labels}
 
 
-@label_router.put("/update_label/{label_id}")
+@label_router.put("/update_label/{label_id}", status_code=201)
 def update_label(request: Request, response: Response, label_id: int, updated_label: LabelsValidator,
                  db: Session = Depends(get_db)):
     """
